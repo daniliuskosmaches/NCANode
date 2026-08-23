@@ -5,6 +5,7 @@ import kz.ncanode.constants.MessageConstants;
 import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.exception.KeyException;
 import kz.ncanode.exception.ServerException;
+import kz.ncanode.service.KeyFallBackService;
 import kz.ncanode.util.KeyUtil;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import java.util.stream.IntStream;
 public class KalkanWrapper {
     @Getter
     private final KalkanProvider kalkanProvider;
+    private final KeyFallBackService keyFallBackService;
 
     /**
      * Читает ключ P12.
@@ -91,8 +93,9 @@ public class KalkanWrapper {
      * @return Прочитанные ключи
      */
     public List<KeyStoreWrapper> read(final List<SignerRequest> signers) {
-        return IntStream.range(0, signers.size())
-            .mapToObj(i -> tryReadKey(signers, i))
+        List<SignerRequest> prepared = keyFallBackService.prepareSigners(signers);
+        return IntStream.range(0, prepared.size())
+            .mapToObj(i -> tryReadKey(prepared, i))
             .collect(Collectors.toList());
     }
 

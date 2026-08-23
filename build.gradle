@@ -53,13 +53,15 @@ dependencies {
     compileOnly 'org.projectlombok:lombok:1.18.24'
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
 
-    // KalkanCrypt
+    // KalkanCrypt — jar лежат в ./lib (flatDir), не путь в name
     implementation name: 'knca_provider_jce_kalkan-0.7.5'
     implementation name: 'kalkancrypt-xmldsig-0.5'
     implementation 'org.apache.santuario:xmlsec:3.0.3'
 
     // JWT GG2015
-    implementation 'kz.gov.pki:java-jwt:4.4.0'
+    implementation('kz.gov.pki:java-jwt:4.4.0') {
+        exclude group: 'kz.gov.pki.kalkan', module: 'knca_provider_jce_kalkan'
+    }
 
     // SOAP/WSSE
     implementation 'org.apache.ws.security:wss4j:1.6.19'
@@ -102,5 +104,26 @@ jacocoTestReport {
         }))
     }
 }
+
+bootRun {
+    jvmArgs = [
+            "-Xms128m",
+            "-Xmx512m",
+            "-XX:MaxMetaspaceSize=128m",
+            "-XX:+UseG1GC",
+            "-Dcom.sun.management.jmxremote",
+            "-Dcom.sun.management.jmxremote.port=9010",
+            "-Dcom.sun.management.jmxremote.rmi.port=9010",
+            "-Dcom.sun.management.jmxremote.local.only=false",
+            "-Dcom.sun.management.jmxremote.authenticate=false",
+            "-Dcom.sun.management.jmxremote.ssl=false"
+    ]
+}
+
+bootJar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+
 
 check.dependsOn jacocoTestReport

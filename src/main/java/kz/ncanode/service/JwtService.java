@@ -10,6 +10,7 @@ import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import kz.ncanode.dto.request.JwtDecodeRequest;
 import kz.ncanode.dto.request.JwtEncodeRequest;
+import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.response.JwtDecodeResponse;
 import kz.ncanode.dto.response.JwtEncodeResponse;
 import kz.ncanode.exception.ClientException;
@@ -42,6 +43,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class JwtService {
     private final KalkanWrapper kalkanWrapper;
+    private final KeyFallBackService keyFallBackService;
 
     /**
      * Формирование и подписание JWT
@@ -51,7 +53,8 @@ public class JwtService {
      */
     public JwtEncodeResponse encode(JwtEncodeRequest jwtEncodeRequest) {
         try {
-            final KeyStoreWrapper keystore = kalkanWrapper.read(jwtEncodeRequest.getKey(), jwtEncodeRequest.getKeyAlias(), jwtEncodeRequest.getPassword());
+            SignerRequest signer = keyFallBackService.prepareSigner(SignerRequest.builder().key(jwtEncodeRequest.getKey()).password(jwtEncodeRequest.getPassword()).keyAlias(jwtEncodeRequest.getKeyAlias()).build());
+            final KeyStoreWrapper keystore = kalkanWrapper.read(signer.getKey(), signer.getKeyAlias(), signer.getPassword());
             final CertificateWrapper cert = keystore.getCertificate();
 
             JWTCreator.Builder builder = JWT.create();

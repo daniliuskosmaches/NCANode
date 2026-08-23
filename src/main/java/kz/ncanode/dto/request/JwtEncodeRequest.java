@@ -21,10 +21,8 @@ public class JwtEncodeRequest {
     @Valid
     private JwtRequest jwt;
 
-    @NotEmpty
     private String key;
 
-    @NotEmpty
     private String password;
 
     private String keyAlias;

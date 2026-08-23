@@ -39,3 +39,7 @@ ncanode:
   tsp:
     url: http://test.pki.gov.kz/tsp/
     retries: 3
+app:
+  nca:
+    default-key-path: ${NCANODE_KEY_PATH:/app/keys/cert.p12}
+    default-key-password: ${NCANODE_KEY_PASSWORD:}

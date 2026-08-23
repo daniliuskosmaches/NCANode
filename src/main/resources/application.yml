@@ -43,3 +43,7 @@ springdoc:
     configUrl: ${SWAGGER_RELATIVE_PATH:}/v3/api-docs/swagger-config
     oauth2RedirectUrl: ${SWAGGER_RELATIVE_PATH:}/swagger-ui/oauth2-redirect.html
     url: ${SWAGGER_RELATIVE_PATH:}/v3/api-docs
+app:
+  nca:
+    default-key-path: ${NCANODE_KEY_PATH:/app/keys/cert.p12}
+    default-key-password: ${NCANODE_KEY_PASSWORD:}

@@ -7,9 +7,13 @@ services:
     build:
       context: .
     volumes:
+      - ./keys:/app/keys:ro
       - ncanode_cache:/app/cache
     ports:
       - "14579:14579"
+    environment:
+      NCANODE_KEY_PATH: /app/keys/cert.p12
+      NCANODE_KEY_PASSWORD: ${NCANODE_KEY_PASSWORD}
 
 volumes:
   ncanode_cache:

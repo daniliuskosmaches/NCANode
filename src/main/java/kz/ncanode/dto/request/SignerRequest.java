@@ -10,11 +10,10 @@ import javax.validation.constraints.NotEmpty;
 @Data
 @Builder
 public class SignerRequest {
-
-    @NotEmpty
+    //@NotEmpty
     private String key;
 
-    @NotEmpty
+    //@NotEmpty
     private String password;
 
     private String keyAlias;

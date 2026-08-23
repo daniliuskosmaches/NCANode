@@ -5,6 +5,7 @@ import kz.gov.pki.kalkan.jce.provider.cms.*;
 import kz.ncanode.dto.pdf.PdfSignerInfo;
 import kz.ncanode.dto.request.PdfSignRequest;
 import kz.ncanode.dto.request.PdfVerifyRequest;
+import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.response.PdfSignResponse;
 import kz.ncanode.dto.response.PdfVerificationResponse;
 import kz.ncanode.dto.tsp.TsaPolicy;
@@ -55,6 +56,9 @@ public class PdfService {
 
 			// Apply PDF signers
 			for (PdfSignRequest.PdfSigner pdfSigner : pdfSignRequest.getSigners()) {
+                SignerRequest signer = pdfSigner.getSigner() != null
+                    ? pdfSigner.getSigner()
+                    : SignerRequest.builder().build();
 				var keyStoreWrapper = kalkanWrapper.read(List.of(pdfSigner.getSigner())).get(0);
 
 				PDSignature signature = new PDSignature();

@@ -515,9 +515,6 @@ components:
           items:
             $ref: '#/components/schemas/CertificateInfo'
     SignerRequest:
-      required:
-        - key
-        - password
       type: object
       properties:
         key:
@@ -530,7 +527,6 @@ components:
           type: string
     XmlSignRequest:
       required:
-        - signers
         - xml
       type: object
       properties:
@@ -592,8 +588,6 @@ components:
             type: string
     WsseSignRequest:
       required:
-        - key
-        - password
         - xml
       type: object
       properties:
@@ -608,8 +602,6 @@ components:
         trimXml:
           type: boolean
     Pkcs12InfoRequest:
-      required:
-        - keys
       type: object
       properties:
         revocationCheck:
@@ -690,7 +682,6 @@ components:
     PdfSignRequest:
       required:
         - pdf
-        - signers
       type: object
       properties:
         pdf:
@@ -708,8 +699,6 @@ components:
             - TSA_GOST_POLICY
             - TSA_GOSTGT_POLICY
     PdfSigner:
-      required:
-        - signer
       type: object
       properties:
         reason:
@@ -787,8 +776,6 @@ components:
         hash:
           type: string
     CmsCreateRequest:
-      required:
-        - signers
       type: object
       properties:
         cms:
@@ -832,8 +819,6 @@ components:
     JwtEncodeRequest:
       required:
         - jwt
-        - key
-        - password
       type: object
       properties:
         jwt:

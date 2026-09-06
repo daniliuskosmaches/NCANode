@@ -54,12 +54,17 @@ public class PdfService {
 			// Load PDF document
 			PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfBytes));
 
-			// Apply PDF signers
-			for (PdfSignRequest.PdfSigner pdfSigner : pdfSignRequest.getSigners()) {
-                SignerRequest signer = pdfSigner.getSigner() != null
-                    ? pdfSigner.getSigner()
-                    : SignerRequest.builder().build();
-				var keyStoreWrapper = kalkanWrapper.read(List.of(pdfSigner.getSigner())).get(0);
+			// Apply PDF signers (если список пустой — одна подпись дефолтным ЭЦП с диска)
+			List<PdfSignRequest.PdfSigner> pdfSigners = pdfSignRequest.getSigners();
+			if (pdfSigners == null || pdfSigners.isEmpty()) {
+				pdfSigners = List.of(new PdfSignRequest.PdfSigner());
+			}
+
+			for (PdfSignRequest.PdfSigner pdfSigner : pdfSigners) {
+				SignerRequest signer = pdfSigner.getSigner() != null
+					? pdfSigner.getSigner()
+					: SignerRequest.builder().build();
+				var keyStoreWrapper = kalkanWrapper.read(List.of(signer)).get(0);
 
 				PDSignature signature = new PDSignature();
 				signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);

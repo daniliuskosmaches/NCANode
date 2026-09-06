@@ -67,10 +67,15 @@ public class XmlService {
             removeWhitespace(document.getDocument());
         }
 
-        int i = 0;
+        final var requestSigners = xmlSignRequest.getSigners();
+        final var keyStores = kalkanWrapper.read(requestSigners);
 
-        for (KeyStoreWrapper keyStore : kalkanWrapper.read(xmlSignRequest.getSigners())) {
-            document.createXmlSignature(keyStore.getCertificate(), xmlSignRequest.getSigners().get(i++).getReferenceUri())
+        for (int i = 0; i < keyStores.size(); i++) {
+            final KeyStoreWrapper keyStore = keyStores.get(i);
+            final String referenceUri = (requestSigners != null && i < requestSigners.size() && requestSigners.get(i) != null)
+                ? requestSigners.get(i).getReferenceUri()
+                : null;
+            document.createXmlSignature(keyStore.getCertificate(), referenceUri)
                 .sign(keyStore.getPrivateKey());
         }
 

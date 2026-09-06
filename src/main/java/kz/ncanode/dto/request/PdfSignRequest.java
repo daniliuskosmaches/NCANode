@@ -12,7 +12,6 @@ public class PdfSignRequest {
 	@NotEmpty
 	private String pdf;
 
-	@NotEmpty
 	private List<PdfSigner> signers;
 
 	private boolean withTsp = false;
@@ -25,7 +24,6 @@ public class PdfSignRequest {
 		private String location;
 		private String contactInfo;
 
-		@NotEmpty
 		private SignerRequest signer;
 	}
 }

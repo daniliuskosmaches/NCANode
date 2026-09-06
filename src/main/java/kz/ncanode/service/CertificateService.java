@@ -50,7 +50,7 @@ public class CertificateService {
         val withOcsp = request.getRevocationCheck().contains(CertificateRevocation.OCSP);
         val withCrl = request.getRevocationCheck().contains(CertificateRevocation.CRL);
 
-        val keys = Optional.of(request.getKeys()).map(kalkanWrapper::read).orElseThrow();
+        val keys = kalkanWrapper.read(request.getKeys());
         val certs = new ArrayList<CertificateInfo>();
 
         for (var key : keys) {

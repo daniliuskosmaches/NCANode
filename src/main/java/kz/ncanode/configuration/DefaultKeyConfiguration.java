@@ -10,6 +10,6 @@ public class DefaultKeyConfiguration {
     @Value("${app.nca.default-key-path:/app/keys/cert.p12}")
     private String defaultKeyPath;
 
-    @Value("${app.nca.default-key-password:DEFAULT_PASSWORD}")
+    @Value("${app.nca.default-key-password:}")
     private String defaultKeyPassword;
 }

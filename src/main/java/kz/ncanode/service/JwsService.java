@@ -15,6 +15,7 @@ import kz.ncanode.dto.jws.JwsSignerInfo;
 import kz.ncanode.dto.request.JwsSignRequest;
 import kz.ncanode.dto.request.JwsSignerRequest;
 import kz.ncanode.dto.request.JwsVerifyRequest;
+import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.response.JwsSignResponse;
 import kz.ncanode.dto.response.JwsVerifyResponse;
 import kz.ncanode.exception.ClientException;
@@ -54,6 +55,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class JwsService {
     private final KalkanWrapper kalkanWrapper;
+    private final KeyFallBackService keyFallBackService;
     private final CertificateService certificateService;
     private final ObjectMapper objectMapper;
 
@@ -222,7 +224,12 @@ public class JwsService {
      * Считает одну подпись над {@code protectedB64.payloadB64} и возвращает узел signatures[].
      */
     private ObjectNode signOne(JwsSignerRequest signer, String payloadB64, String typ) throws Exception {
-        KeyStoreWrapper keystore = kalkanWrapper.read(signer.getKey(), signer.getKeyAlias(), signer.getPassword());
+        SignerRequest prepared = keyFallBackService.prepareSigner(SignerRequest.builder()
+            .key(signer.getKey())
+            .password(signer.getPassword())
+            .keyAlias(signer.getKeyAlias())
+            .build());
+        KeyStoreWrapper keystore = kalkanWrapper.read(prepared.getKey(), prepared.getKeyAlias(), prepared.getPassword());
         CertificateWrapper cert = keystore.getCertificate();
 
         Map<String, Object> header = new LinkedHashMap<>();

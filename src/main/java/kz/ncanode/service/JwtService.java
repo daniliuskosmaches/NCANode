@@ -1,5 +1,6 @@
 package kz.ncanode.service;
 
+import io.micrometer.observation.annotation.Observed;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
@@ -10,11 +11,12 @@ import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import kz.ncanode.dto.request.JwtDecodeRequest;
 import kz.ncanode.dto.request.JwtEncodeRequest;
+import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.response.JwtDecodeResponse;
 import kz.ncanode.dto.response.JwtEncodeResponse;
 import kz.ncanode.exception.ClientException;
-import kz.ncanode.exception.KeyException;
-import kz.ncanode.exception.ServerException;
+import kz.ncanode.exception.ServerOp;
+import kz.ncanode.util.JwtAlgorithmUtil;
 import kz.ncanode.wrapper.CertificateWrapper;
 import kz.ncanode.wrapper.KalkanWrapper;
 import kz.ncanode.wrapper.KeyStoreWrapper;
@@ -22,14 +24,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
+import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,6 +40,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class JwtService {
     private final KalkanWrapper kalkanWrapper;
+    private final KeyFallBackService keyFallBackService;
 
     /**
      * Формирование и подписание JWT
@@ -49,9 +48,15 @@ public class JwtService {
      * @param jwtEncodeRequest Запрос на формирование и подписание JWT
      * @return Ответ с подписанным JWT
      */
+    @Observed(name = "ncanode.jwt", contextualName = "jwt encode")
     public JwtEncodeResponse encode(JwtEncodeRequest jwtEncodeRequest) {
-        try {
-            final KeyStoreWrapper keystore = kalkanWrapper.read(jwtEncodeRequest.getKey(), jwtEncodeRequest.getKeyAlias(), jwtEncodeRequest.getPassword());
+        return ServerOp.call(null, () -> {
+            SignerRequest signer = keyFallBackService.prepareSigner(SignerRequest.builder()
+                .key(jwtEncodeRequest.getKey())
+                .password(jwtEncodeRequest.getPassword())
+                .keyAlias(jwtEncodeRequest.getKeyAlias())
+                .build());
+            final KeyStoreWrapper keystore = kalkanWrapper.read(signer.getKey(), signer.getKeyAlias(), signer.getPassword());
             final CertificateWrapper cert = keystore.getCertificate();
 
             JWTCreator.Builder builder = JWT.create();
@@ -62,7 +67,7 @@ public class JwtService {
                 addClaim(builder, entry.getKey(), entry.getValue());
             }
 
-            Algorithm algorithm = resolveAlgorithm(
+            Algorithm algorithm = JwtAlgorithmUtil.forSigning(
                 jwtEncodeRequest.getJwt().getHeader().getAlg(),
                 cert.getPublicKey(),
                 keystore.getPrivateKey()
@@ -73,12 +78,7 @@ public class JwtService {
             return JwtEncodeResponse.builder()
                 .jwt(jwt)
                 .build();
-
-        } catch (KeyException e) {
-            throw new ClientException(e.getMessage(), e);
-        } catch (Exception e) {
-            throw new ServerException(e.getMessage(), e);
-        }
+        });
     }
 
     /**
@@ -87,8 +87,9 @@ public class JwtService {
      * @param jwtDecodeRequest Запрос на проверку JWT
      * @return Результат проверки с декодированными данными
      */
+    @Observed(name = "ncanode.jwt", contextualName = "jwt decode")
     public JwtDecodeResponse decode(JwtDecodeRequest jwtDecodeRequest) {
-        try {
+        return ServerOp.callClient(null, () -> {
 
             var x509 = CertificateService.load(Base64.getDecoder().decode(jwtDecodeRequest.getKey().replaceAll("\\s", "")));
 
@@ -102,7 +103,7 @@ public class JwtService {
                 throw new ClientException(e.getMessage(), e);
             }
 
-            Algorithm algorithm = resolveAlgorithm(
+            Algorithm algorithm = JwtAlgorithmUtil.forVerification(
                 data.getAlgorithm(),
                 x509.getPublicKey()
             );
@@ -133,55 +134,22 @@ public class JwtService {
                     .payload(payload)
                     .build())
                 .build();
-
-        } catch (ClientException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ClientException(e.getMessage(), e);
-        }
+        });
     }
 
-    private Algorithm resolveAlgorithm(String alg, PublicKey publicKey, PrivateKey privateKey) {
-        return switch (alg) {
-            case "GG2015" -> Algorithm.GG2015((ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-            case "GG2004" -> Algorithm.GG2004((ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-            case "ES256" -> Algorithm.ECDSA256((ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-            case "ES384" -> Algorithm.ECDSA384((ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-            case "ES512" -> Algorithm.ECDSA512((ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-            case "RS256" -> Algorithm.RSA256((RSAPublicKey) publicKey, (RSAPrivateKey) privateKey);
-            case "RS384" -> Algorithm.RSA384((RSAPublicKey) publicKey, (RSAPrivateKey) privateKey);
-            case "RS512" -> Algorithm.RSA512((RSAPublicKey) publicKey, (RSAPrivateKey) privateKey);
-            default -> throw new ClientException("Unsupported algorithm: " + alg);
-        };
-    }
-
-    private Algorithm resolveAlgorithm(String alg, PublicKey publicKey) {
-        return switch (alg) {
-            case "GG2015" -> Algorithm.GG2015((ECPublicKey) publicKey);
-            case "GG2004" -> Algorithm.GG2004((ECPublicKey) publicKey);
-            case "ES256" -> Algorithm.ECDSA256((ECPublicKey) publicKey);
-            case "ES384" -> Algorithm.ECDSA384((ECPublicKey) publicKey);
-            case "ES512" -> Algorithm.ECDSA512((ECPublicKey) publicKey);
-            case "RS256" -> Algorithm.RSA256((RSAPublicKey) publicKey);
-            case "RS384" -> Algorithm.RSA384((RSAPublicKey) publicKey);
-            case "RS512" -> Algorithm.RSA512((RSAPublicKey) publicKey);
-            default -> throw new ClientException("Unsupported algorithm: " + alg);
-        };
-    }
-
+    @SuppressWarnings("unchecked")
     private void addClaim(JWTCreator.Builder builder, String key, Object value) {
-        if (value instanceof String) {
-            builder.withClaim(key, (String) value);
-        } else if (value instanceof Integer) {
-            builder.withClaim(key, (Integer) value);
-        } else if (value instanceof Long) {
-            builder.withClaim(key, (Long) value);
-        } else if (value instanceof Double) {
-            builder.withClaim(key, (Double) value);
-        } else if (value instanceof Boolean) {
-            builder.withClaim(key, (Boolean) value);
-        } else if (value != null) {
-            builder.withClaim(key, value.toString());
+        switch (value) {
+            case null -> { }
+            case String s -> builder.withClaim(key, s);
+            case Integer i -> builder.withClaim(key, i);
+            case Long l -> builder.withClaim(key, l);
+            case Double d -> builder.withClaim(key, d);
+            case Boolean b -> builder.withClaim(key, b);
+            case Date d -> builder.withClaim(key, d);
+            case Map<?, ?> m -> builder.withClaim(key, (Map<String, ?>) m);
+            case List<?> l -> builder.withClaim(key, l);
+            default -> builder.withClaim(key, value.toString());
         }
     }
 }

@@ -18,10 +18,8 @@ public class JwsSignerRequest {
     @NotEmpty
     private String alg;
 
-    @NotEmpty
     private String key;
 
-    @NotEmpty
     private String password;
 
     private String keyAlias;

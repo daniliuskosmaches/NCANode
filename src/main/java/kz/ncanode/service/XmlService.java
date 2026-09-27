@@ -1,5 +1,6 @@
 package kz.ncanode.service;
 
+import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.request.XmlSignRequest;
 import kz.ncanode.dto.response.VerificationResponse;
 import kz.ncanode.dto.response.XmlSignResponse;
@@ -30,6 +31,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class XmlService {
     private final KalkanWrapper kalkanWrapper;
+    private final KeyFallBackService keyFallBackService;
     private final CertificateService certificateService;
 
     /**
@@ -67,11 +69,12 @@ public class XmlService {
             removeWhitespace(document.getDocument());
         }
 
-        int i = 0;
+        List<SignerRequest> signers = keyFallBackService.prepareSigners(xmlSignRequest.getSigners());
+        List<KeyStoreWrapper> keyStores = kalkanWrapper.read(signers);
 
-        for (KeyStoreWrapper keyStore : kalkanWrapper.read(xmlSignRequest.getSigners())) {
-            document.createXmlSignature(keyStore.getCertificate(), xmlSignRequest.getSigners().get(i++).getReferenceUri())
-                .sign(keyStore.getPrivateKey());
+        for (int i = 0; i < keyStores.size(); i++) {
+            document.createXmlSignature(keyStores.get(i).getCertificate(), signers.get(i).getReferenceUri())
+                .sign(keyStores.get(i).getPrivateKey());
         }
 
         return XmlSignResponse.builder()

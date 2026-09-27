@@ -1,6 +1,5 @@
 package kz.ncanode.service;
 
-import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.request.WsseSignRequest;
 import kz.ncanode.dto.response.VerificationResponse;
 import kz.ncanode.dto.response.XmlSignResponse;
@@ -52,7 +51,6 @@ public class WsseService {
     private final KalkanWrapper kalkanWrapper;
     private final XmlService xmlService;
     private final CertificateService certificateService;
-    private final KeyFallBackService keyFallBackService;
 
     /**
      * Подписывает Wsse XML
@@ -63,16 +61,7 @@ public class WsseService {
     public XmlSignResponse sign(final WsseSignRequest wsseSignRequest) {
         try {
             // read key
-            SignerRequest signer = keyFallBackService.prepareSigner(
-                SignerRequest.builder()
-                    .key(wsseSignRequest.getKey())
-                    .password(wsseSignRequest.getPassword())
-                    .keyAlias(wsseSignRequest.getKeyAlias())
-                    .build()
-            );
-            final KeyStoreWrapper keystore = kalkanWrapper.read(
-                signer.getKey(), signer.getKeyAlias(), signer.getPassword()
-            );
+            final KeyStoreWrapper keystore = kalkanWrapper.read(wsseSignRequest.getKey(), wsseSignRequest.getKeyAlias(), wsseSignRequest.getPassword());
             final CertificateWrapper cert = keystore.getCertificate();
 
             // sign a soap request according to a reference implementation from smartbridge

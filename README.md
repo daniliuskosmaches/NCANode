@@ -7,11 +7,11 @@
 ---
 
 ![License:MIT](https://img.shields.io/badge/license-MIT-green.svg)
-![Downloads](https://img.shields.io/github/downloads/malikzh/NCANode/total.svg)
+![Downloads](https://img.shields.io/github/downloads/ncanode-kz/NCANode/total.svg)
 ![Docker Pulls](https://img.shields.io/docker/pulls/malikzh/ncanode)
-[![Build CI and Test](https://github.com/malikzh/NCANode/actions/workflows/build-ci.yml/badge.svg)](https://github.com/malikzh/NCANode/actions/workflows/build-ci.yml)
-![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/malikzh/NCANode)
-[![codecov](https://codecov.io/gh/malikzh/NCANode/branch/master/graph/badge.svg?token=yk6ln3mlTB)](https://codecov.io/gh/malikzh/NCANode)
+[![Build CI and Test](https://github.com/ncanode-kz/NCANode/actions/workflows/build-ci.yml/badge.svg)](https://github.com/ncanode-kz/NCANode/actions/workflows/build-ci.yml)
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/ncanode-kz/NCANode)
+[![codecov](https://codecov.io/gh/ncanode-kz/NCANode/branch/master/graph/badge.svg?token=yk6ln3mlTB)](https://codecov.io/gh/ncanode-kz/NCANode)
 
 ---
 
@@ -27,8 +27,15 @@
 - Поддержка TSP-меток в CMS
 - Поддержка множественных подписей для xmldsig и CMS
 - Возможность добавления подписей уже в существующие файлы CMS и XML
+- Подпись и проверка PDF (PAdES)
+- Профили ETSI AdES для XML, CMS и PDF: **XAdES / CAdES / PAdES уровней B, T, LT, LTA** (эндпоинты `/xml/sign`, `/cms/sign`, `/pdf/sign` с параметром `xadesLevel` / `cadesLevel` / `padesLevel`)
+- Достройка готовой подписи до уровня LT / LTA (`/cms/extend`, `/pdf/extend`)
+- Проверка AdES-подписей: определение уровня, проверка метки времени, «доказанного времени подписи», вшитого отзыва (CRL/OCSP), статус по ETSI EN 319 102-1
+- Подпись и проверка произвольного JSON через JWS (`/jws/sign`, `/jws/verify`, compact serialization)
+- Подпись и проверка JWT (`/jwt/*`)
 - Поддержка новых ЭЦП (ГОСТ 2015) и новых CRL
 - Добавлены тесты на весь функционал
+- Распределённая трассировка по OTLP (OpenTelemetry) и метрики Micrometer
 - Docker
 
 ## Официальная группа в Telegram
@@ -83,8 +90,8 @@ Swagger: https://v3.ncanode.kz/swagger-ui/
 
 ## Contributors
 
-<a href="https://github.com/malikzh/NCANode/graphs/contributors">
-  <img src="https://contributors-img.web.app/image?repo=malikzh/NCANode" />
+<a href="https://github.com/ncanode-kz/NCANode/graphs/contributors">
+  <img src="https://contributors-img.web.app/image?repo=ncanode-kz/NCANode" />
 </a>
 
 ## Лицензия
@@ -99,8 +106,8 @@ Swagger: https://v3.ncanode.kz/swagger-ui/
 
 ### Сборка проекта
 
-Версия gradle: 7.2
-Версия java: 17
+Версия gradle: 9.6
+Версия java: 25
 
 Для сборки проекта необходимо:
 
@@ -139,6 +146,8 @@ docker compose stop  // остановка контейнера
 ### После запуска
 
 Проверить можно, перейдя на страницу: http://localhost:14579/actuator/health
+
+[Трассировка запросов](TRACING.md) - [Опционально]
 
 ## Как отправить Pull Request
 

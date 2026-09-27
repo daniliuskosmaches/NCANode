@@ -6,13 +6,11 @@ import kz.ncanode.dto.certificate.CertificateInfo;
 import kz.ncanode.dto.certificate.CertificateRevocation;
 import kz.ncanode.dto.request.Pkcs12InfoRequest;
 import kz.ncanode.dto.request.SbaSignRequest;
-import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.response.SbaSignResponse;
 import kz.ncanode.dto.response.VerificationResponse;
 import kz.ncanode.exception.ServerException;
 import kz.ncanode.wrapper.CertificateWrapper;
 import kz.ncanode.wrapper.KalkanWrapper;
-import kz.ncanode.wrapper.KeyStoreWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.springframework.stereotype.Service;
@@ -32,7 +30,6 @@ public class CertificateService {
     public final OcspService ocspService;
     public final CaService caService;
     public final KalkanWrapper kalkanWrapper;
-    private final KeyFallBackService keyFallBackService;
 
     public void attachValidationData(final CertificateWrapper cert, boolean checkOcsp, boolean checkCrl) {
         cert.setIssuerCertificate(caService.getRootCertificateFor(cert).orElse(null));
@@ -187,15 +184,49 @@ public class CertificateService {
 
     public SbaSignResponse create(SbaSignRequest sbaSignRequest) {
         try {
-            SignerRequest signer = keyFallBackService.prepareSigner(sbaSignRequest.getSigner());
-            KeyStoreWrapper keyStoreWrapper = kalkanWrapper.read(List.of(signer)).get(0);
+            String keyBase64 = sbaSignRequest.getSigner().getKey();
             //System.out.println("keyBase64: " + keyBase64);
-            PrivateKey privateKey = keyStoreWrapper.getPrivateKey();
-            X509Certificate certificate = keyStoreWrapper.getCertificate().getX509Certificate();
+
+            byte[] keyBytes = Base64.getDecoder().decode(
+                keyBase64.replaceAll("\\s", ""));
+
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            try (ByteArrayInputStream is = new ByteArrayInputStream(keyBytes)) {
+                keyStore.load(is, sbaSignRequest.getSigner().getPassword().toCharArray());
+            }
+
+            String alias = sbaSignRequest.getSigner().getKeyAlias();
+
+            if (alias == null || alias.isBlank()) {
+                Enumeration<String> aliases = keyStore.aliases();
+
+                while (aliases.hasMoreElements()) {
+                    String current = aliases.nextElement();
+                    if (keyStore.isKeyEntry(current)) {
+                        alias = current;
+                        break;
+                    }
+                }
+            }
+
+            if (alias == null) {
+                throw new ServerException("Private key not found in PKCS12");
+            }
+
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(
+                alias,
+                sbaSignRequest.getSigner().getPassword().toCharArray());
+
+            X509Certificate certificate =
+                (X509Certificate) keyStore.getCertificate(alias);
+
             Signature signature = Signature.getInstance(certificate.getSigAlgName());
+
             signature.initSign(privateKey);
             signature.update(sbaSignRequest.getData().getBytes(StandardCharsets.UTF_8));
+
             byte[] signBytes = signature.sign();
+
             return SbaSignResponse.builder()
                 .certificate(Base64.getEncoder().encodeToString(certificate.getEncoded()))
                 .signature(Base64.getEncoder().encodeToString(signBytes))

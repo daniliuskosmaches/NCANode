@@ -1,6 +1,26 @@
 coverage:
+  precision: 2
+  round: down
   status:
     project:
       default:
-        target: 60%
+        # реальный потолок ~85%: остаток непокрытого — это defensive catch-и вокруг
+        # JCA/ASN.1, которые фейлятся только на битом крипто-входе. Не блокируем сборку
+        # на абсолютной цифре, только ловим регрессию.
+        target: auto
         threshold: 1%
+    patch:
+      default:
+        target: 90%
+        threshold: 5%
+
+ignore:
+  - "src/main/java/kz/ncanode/NCANode.java"
+  - "src/main/java/kz/ncanode/controller/HomePageController.java"
+
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: true
+
+github_checks:
+  annotations: true

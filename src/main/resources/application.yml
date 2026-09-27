@@ -37,6 +37,25 @@ ncanode:
   tsp:
     url: ${NCANODE_TSP_URL:http://tsp.pki.gov.kz/}
     retries: ${NCANODE_TSP_RETRIES:3}
+  tracing:
+    excludedPaths: ${NCANODE_TRACING_EXCLUDED_PATHS:/actuator/**,/swagger-ui/**,/v3/api-docs/**,/favicon.ico}
+management:
+  endpoint:
+    health:
+      show-components: always
+      show-details: always
+  opentelemetry:
+    resource-attributes:
+      # отдельно от spring.application.name, чтобы не менять формат логов
+      service.name: ${NCANODE_TRACING_SERVICE_NAME:NCANode}
+  tracing:
+    enabled: ${NCANODE_TRACING_ENABLED:false}
+    sampling:
+      probability: ${NCANODE_TRACING_SAMPLING:1.0}
+  otlp:
+    tracing:
+      endpoint: ${NCANODE_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+      timeout: ${NCANODE_TRACING_TIMEOUT:10s}
 springdoc:
   show-actuator: true
   swagger-ui:

@@ -1,5 +1,6 @@
 package kz.ncanode.service;
 
+import io.micrometer.observation.annotation.Observed;
 import kz.gov.pki.kalkan.asn1.ASN1Encodable;
 import kz.gov.pki.kalkan.asn1.ASN1EncodableVector;
 import kz.gov.pki.kalkan.asn1.DERSet;
@@ -34,6 +35,7 @@ import java.security.NoSuchProviderException;
 import java.security.cert.*;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -43,6 +45,7 @@ public class TspService {
     private final CloseableHttpClient client;
     private final TspConfiguration tspConfiguration;
 
+    @Observed(name = "ncanode.tsp", contextualName = "tsp create")
     public TimeStampToken create(byte[] data, String hashAlg, String reqPolicy) {
         try {
             // Generate hash
@@ -106,6 +109,56 @@ public class TspService {
         return BigInteger.valueOf(System.currentTimeMillis());
     }
 
+    /**
+     * Полная проверка метки времени: подпись TSA валидна И message imprint совпадает с хешем
+     * переданных данных (метка действительно покрывает эти данные).
+     *
+     * @param token           метка времени
+     * @param timestampedData данные, которые метка должна покрывать
+     * @return {@code true}, если метка валидна и покрывает данные
+     */
+    public boolean verify(TimeStampToken token, byte[] timestampedData) {
+        try {
+            CMSSignedData tokenCms = token.toCMSSignedData();
+
+            if (info(tokenCms).isEmpty()) {
+                return false;
+            }
+
+            TimeStampTokenInfo tstInfo = token.getTimeStampInfo();
+            byte[] expected = MessageDigest.getInstance(tstInfo.getMessageImprintAlgOID(), KalkanProvider.PROVIDER_NAME)
+                .digest(timestampedData);
+
+            return java.util.Arrays.equals(expected, tstInfo.getMessageImprintDigest());
+        } catch (Exception e) {
+            log.warn("Timestamp verification failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Извлекает сертификаты (цепочку TSA) из TimeStampToken — для вшивания в XAdES-LT.
+     *
+     * @param token метка времени
+     * @return список сертификатов (пустой при ошибке)
+     */
+    public List<X509Certificate> extractCertificates(TimeStampToken token) {
+        if (token == null) {
+            return List.of();
+        }
+        try {
+            CertStore store = token.getCertificatesAndCRLs("Collection", KalkanProvider.PROVIDER_NAME);
+            return store.getCertificates(null).stream()
+                .filter(X509Certificate.class::isInstance)
+                .map(X509Certificate.class::cast)
+                .toList();
+        } catch (GeneralSecurityException | CMSException e) {
+            log.warn("Cannot extract TSA certificates from timestamp token: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    @Observed(name = "ncanode.tsp", contextualName = "tsp add to signer")
     public SignerInformation addTspToSigner(SignerInformation signer, X509Certificate cert, String useTsaPolicy) throws NoSuchAlgorithmException, NoSuchProviderException, TSPException, IOException {
         AttributeTable unsignedAttributes = signer.getUnsignedAttributes();
         ASN1EncodableVector vector = new ASN1EncodableVector();
@@ -140,7 +193,8 @@ public class TspService {
                 throw new TspException(String.format("Invalid TSP response status: %d", statusCode));
             }
 
-            return new TimeStampResponse(response.getEntity().getContent());
+            return new TimeStampResponse(new java.io.ByteArrayInputStream(
+                Util.readEntityBounded(response.getEntity(), Util.MAX_HTTP_RESPONSE_BYTES)));
         } catch (IOException | TSPException e) {
             throw new TspException("TSP request failure.", e);
         }

@@ -1,6 +1,8 @@
 package kz.ncanode.configuration;
 
+import io.micrometer.observation.ObservationRegistry;
 import kz.ncanode.dto.http.HttpProxyConfig;
+import kz.ncanode.wrapper.TracedHttpRequestExecutor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +37,11 @@ public class HttpClientConfiguration {
 
     @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
     @Bean
-    public CloseableHttpClient httpClient() {
+    public CloseableHttpClient httpClient(ObservationRegistry observationRegistry) {
         var customClient = HttpClients.custom();
+
+        // исходящие CRL/OCSP/TSP/CA-запросы — отдельными CLIENT-span-ами внутри трейса запроса
+        customClient.setRequestExecutor(new TracedHttpRequestExecutor(observationRegistry));
 
         if (proxy != null && proxy.getUrl() != null && !proxy.getUrl().isBlank()) {
             try {

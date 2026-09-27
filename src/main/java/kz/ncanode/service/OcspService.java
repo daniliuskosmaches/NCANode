@@ -1,5 +1,6 @@
 package kz.ncanode.service;
 
+import io.micrometer.observation.annotation.Observed;
 import kz.gov.pki.kalkan.asn1.ASN1InputStream;
 import kz.gov.pki.kalkan.asn1.DERObject;
 import kz.gov.pki.kalkan.asn1.DEROctetString;
@@ -11,6 +12,7 @@ import kz.gov.pki.kalkan.ocsp.*;
 import kz.ncanode.configuration.OcspConfiguration;
 import kz.ncanode.dto.ocsp.OcspResult;
 import kz.ncanode.dto.ocsp.OcspStatus;
+import kz.ncanode.util.Util;
 import kz.ncanode.wrapper.CertificateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -46,6 +49,7 @@ public class OcspService {
      * @param issuer Сертификат удостоверяющего центра
      * @return
      */
+    @Observed(name = "ncanode.ocsp", contextualName = "ocsp verify")
     public List<OcspStatus> verify(CertificateWrapper cert, CertificateWrapper issuer) {
         List<OcspStatus> statuses = new ArrayList<>();
 
@@ -65,7 +69,8 @@ public class OcspService {
                 OCSPReq request = buildOcspRequest(cert.getX509Certificate().getSerialNumber(), issuer.getX509Certificate(), nonce);
 
                 try (CloseableHttpResponse response = makeRequest(entry.getValue().toString(), request.getEncoded())) {
-                    statuses.add(processOcspResponse(response.getEntity().getContent(), nonce));
+                    byte[] body = Util.readEntityBounded(response.getEntity(), Util.MAX_HTTP_RESPONSE_BYTES);
+                    statuses.add(processOcspResponse(new ByteArrayInputStream(body), nonce));
                 }
             } catch (Exception e) {
                 statuses.add(OcspStatus.builder()
@@ -78,6 +83,42 @@ public class OcspService {
         }
 
         return statuses;
+    }
+
+    /**
+     * Запрашивает OCSP-ответы для сертификата и возвращает их в DER (полный {@code OCSPResponse}).
+     * Для вшивания в XAdES-LT. Ответы со статусом != 0 и ошибки транспорта отбрасываются.
+     *
+     * @param cert   проверяемый сертификат
+     * @param issuer сертификат издателя
+     * @return список DER-кодированных {@code OCSPResponse} (может быть пустым)
+     */
+    @Observed(name = "ncanode.ocsp", contextualName = "ocsp fetch")
+    public List<byte[]> getRawResponses(CertificateWrapper cert, CertificateWrapper issuer) {
+        final List<byte[]> responses = new ArrayList<>();
+
+        if (issuer == null) {
+            return responses;
+        }
+
+        for (Map.Entry<String, URL> entry : ocspConfiguration.getUrlList().entrySet()) {
+            try {
+                byte[] nonce = generateOcspNonce();
+                OCSPReq request = buildOcspRequest(cert.getX509Certificate().getSerialNumber(), issuer.getX509Certificate(), nonce);
+
+                try (CloseableHttpResponse response = makeRequest(entry.getValue().toString(), request.getEncoded())) {
+                    byte[] responseBytes = Util.readEntityBounded(response.getEntity(), Util.MAX_HTTP_RESPONSE_BYTES);
+
+                    if (new OCSPResp(responseBytes).getStatus() == 0) {
+                        responses.add(responseBytes);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("OCSP fetch for XAdES-LT failed ({}): {}", entry.getValue(), e.getMessage());
+            }
+        }
+
+        return responses;
     }
 
     private OCSPReq buildOcspRequest(BigInteger serialNumber, X509Certificate issuer, byte[] nonce) throws OCSPException {

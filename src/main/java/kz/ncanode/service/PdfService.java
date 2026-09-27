@@ -5,11 +5,9 @@ import kz.gov.pki.kalkan.jce.provider.cms.*;
 import kz.ncanode.dto.pdf.PdfSignerInfo;
 import kz.ncanode.dto.request.PdfSignRequest;
 import kz.ncanode.dto.request.PdfVerifyRequest;
-import kz.ncanode.dto.request.SignerRequest;
 import kz.ncanode.dto.response.PdfSignResponse;
 import kz.ncanode.dto.response.PdfVerificationResponse;
 import kz.ncanode.dto.tsp.TsaPolicy;
-import kz.ncanode.exception.ClientException;
 import kz.ncanode.exception.ServerException;
 import kz.ncanode.exception.NoSignaturesFoundException;
 import kz.ncanode.wrapper.CertificateWrapper;
@@ -57,14 +55,7 @@ public class PdfService {
 
 			// Apply PDF signers
 			for (PdfSignRequest.PdfSigner pdfSigner : pdfSignRequest.getSigners()) {
-				if (pdfSigner == null) {
-					throw new ClientException("signers: элемент не может быть null");
-				}
-
-				SignerRequest signer = pdfSigner.getSigner() != null
-					? pdfSigner.getSigner()
-					: SignerRequest.builder().build();
-				var keyStoreWrapper = kalkanWrapper.read(List.of(signer)).get(0);
+				var keyStoreWrapper = kalkanWrapper.read(List.of(pdfSigner.getSigner())).get(0);
 
 				PDSignature signature = new PDSignature();
 				signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);

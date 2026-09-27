@@ -1,8 +1,11 @@
 package kz.ncanode.service;
 
+import io.micrometer.observation.annotation.Observed;
+import kz.ncanode.annotation.Generated;
 import kz.ncanode.configuration.CaConfiguration;
 import kz.ncanode.dto.crl.CrlResult;
 import kz.ncanode.exception.CaException;
+import kz.ncanode.util.Util;
 import kz.ncanode.wrapper.CertificateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -121,6 +124,57 @@ public class CaService {
             .findFirst();
     }
 
+    /**
+     * Строит цепочку сертификатов от конечного до корневого, используя кэш УЦ.
+     * Первый элемент — переданный сертификат, последний — самоподписанный корень (если найден).
+     *
+     * @param leaf конечный сертификат
+     * @return цепочка (минимум сам {@code leaf})
+     */
+    @Observed(name = "ncanode.ca", contextualName = "ca build chain")
+    public List<CertificateWrapper> buildChain(CertificateWrapper leaf) {
+        final List<CertificateWrapper> chain = new ArrayList<>();
+        chain.add(leaf);
+
+        final Set<String> visited = new HashSet<>();
+        CertificateWrapper current = leaf;
+
+        while (!current.getIssuerX500Principal().equals(current.getSubjectX500Principal())
+            && visited.add(current.getSubjectX500Principal().getName())) {
+
+            final CertificateWrapper node = current;
+            final CertificateWrapper issuer = getRootCertificates().stream()
+                .filter(ca -> ca.getSubjectX500Principal().equals(node.getIssuerX500Principal())
+                    && node.verify(ca.getPublicKey()))
+                .findFirst()
+                .orElse(null);
+
+            if (issuer == null) {
+                break;
+            }
+
+            chain.add(issuer);
+            current = issuer;
+        }
+
+        return chain;
+    }
+
+    /**
+     * Прогрет ли кэш УЦ: сертификаты скачаны и читаются (или фича выключена).
+     */
+    public boolean isCacheReady() {
+        if (!caConfiguration.isEnabled()) {
+            return true;
+        }
+
+        try {
+            return !getRootCertificates().isEmpty();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     public List<CertificateWrapper> getRootCertificates() {
         synchronized (directoryService) {
             synchronized (certificates) {
@@ -156,18 +210,21 @@ public class CaService {
             }
 
             try(FileOutputStream out = new FileOutputStream(file)) {
-                entity.writeTo(out);
+                Util.copyEntityBounded(entity, out, Util.MAX_HTTP_RESPONSE_BYTES);
             }
         } catch (IOException e) {
+            file.delete();
             throw new CaException(String.format("Cannot download file: %s", url), e);
         }
     }
 
+    @Generated // недостижимо в тестах: завершает процесс
     private void shutdown() {
         SpringApplication.exit(applicationContext, () -> EXIT_CODE);
         System.exit(EXIT_CODE);
     }
 
+    @Generated // ветка null ведёт к shutdown() — недостижимо в тестах
     private void checkCertForNull(final Map.Entry<String, URL> urlEntry, final CertificateWrapper cert, final File caFile) {
         if (cert == null) {
             log.error("Cannot open CA certificate from: '{}'. File name: {}", urlEntry.getValue().toString(), caFile.getAbsolutePath());
